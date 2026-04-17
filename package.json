@@ -1,0 +1,73 @@
+{
+  "name": "easygit",
+  "version": "1.0.0",
+  "description": "AI-powered GitHub profile and repository beautifier",
+  "main": "electron/main.js",
+  "scripts": {
+    "web": "npx serve . -p 3333 --no-clipboard",
+    "electron": "electron .",
+    "electron-dev": "cross-env NODE_ENV=development electron .",
+    "build": "cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win portable",
+    "build:all": "cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder -mwl"
+  },
+  "keywords": [
+    "github",
+    "ai",
+    "profile",
+    "readme",
+    "electron"
+  ],
+  "author": "Semih Yılmaz <semyhist>",
+  "license": "GPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/semyhist/EasyGit"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^28.3.3",
+    "electron-builder": "^23.6.0"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "build": {
+    "appId": "com.easygit.app",
+    "productName": "EasyGit",
+    "copyright": "Copyright © 2026 Semih Yılmaz. GPL-3.0 License.",
+    "files": [
+      "index.html",
+      "style.css",
+      "app.js",
+      "modules/**/*",
+      "logo/**/*",
+      "electron/**/*",
+      "LICENSE"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "semyhist",
+        "repo": "EasyGit"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "logo/logowithbg.png",
+      "artifactName": "EasyGit-${version}-portable.exe"
+    },
+    "directories": {
+      "output": "dist",
+      "buildResources": "logo"
+    },
+    "compression": "maximum",
+    "asar": true
+  }
+}
