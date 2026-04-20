@@ -3,7 +3,7 @@
  * Fullscreen window, native title bar, IPC handlers, auto-updater.
  */
 
-const { app, BrowserWindow, ipcMain, Notification, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, Notification, dialog, shell, session } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs   = require('fs');
@@ -71,6 +71,40 @@ function createWindow() {
 // ── App Lifecycle ──
 
 app.whenReady().then(() => {
+  // Remove CORS/CSP restrictions for AI API calls — must be set before window creation
+  session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+    const { requestHeaders, url } = details;
+    if (
+      url.includes('api.openai.com') ||
+      url.includes('api.anthropic.com') ||
+      url.includes('api.groq.com') ||
+      url.includes('generativelanguage.googleapis.com') ||
+      url.includes('openrouter.ai') ||
+      url.includes('api.github.com')
+    ) {
+      delete requestHeaders['Origin'];
+      delete requestHeaders['Referer'];
+    }
+    callback({ requestHeaders });
+  });
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const { responseHeaders, url } = details;
+    if (
+      url.includes('api.openai.com') ||
+      url.includes('api.anthropic.com') ||
+      url.includes('api.groq.com') ||
+      url.includes('generativelanguage.googleapis.com') ||
+      url.includes('openrouter.ai') ||
+      url.includes('api.github.com')
+    ) {
+      responseHeaders['access-control-allow-origin'] = ['*'];
+      delete responseHeaders['content-security-policy'];
+      delete responseHeaders['x-frame-options'];
+    }
+    callback({ responseHeaders });
+  });
+
   createWindow();
 
   // macOS: re-create window if dock icon is clicked

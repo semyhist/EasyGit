@@ -118,11 +118,22 @@ const GitHub = (() => {
 
   // ── README ──
 
+  // UTF-8 safe base64 decode helper
+  function decodeBase64UTF8(base64) {
+    try {
+      const raw = atob(base64.replace(/\n/g, ''));
+      // Handle UTF-8 multi-byte sequences
+      return decodeURIComponent(escape(raw));
+    } catch {
+      // Fallback: plain atob for ASCII-only content
+      return atob(base64.replace(/\n/g, ''));
+    }
+  }
+
   async function getReadme(owner, repo) {
     try {
       const data = await request(`/repos/${owner}/${repo}/readme`);
-      // Decode base64 content
-      const content = atob(data.content.replace(/\n/g, ''));
+      const content = decodeBase64UTF8(data.content);
       return { exists: true, content, sha: data.sha, path: data.path };
     } catch (e) {
       if (e.message.includes('404') || e.message.includes('Not Found')) {
@@ -152,7 +163,7 @@ const GitHub = (() => {
   async function getProfileReadme(username) {
     try {
       const data = await request(`/repos/${username}/${username}/readme`);
-      const content = atob(data.content.replace(/\n/g, ''));
+      const content = decodeBase64UTF8(data.content);
       return { exists: true, content, sha: data.sha };
     } catch {
       return { exists: false, content: null, sha: null };

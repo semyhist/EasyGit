@@ -43,8 +43,17 @@ const UI = (() => {
   function renderMarkdown(md) {
     if (!md) return '';
 
-    let html = md
-      // Escape HTML
+    // Preserve HTML blocks (div, p, img, a, br, table, tr, td, th, span, h1-h6, center, details, summary)
+    // by temporarily replacing them with placeholders
+    const htmlBlocks = [];
+    let preserved = md.replace(/<(div|p|img|a|br|table|tr|td|th|span|h[1-6]|center|details|summary|hr|ul|ol|li|em|strong|b|i|code|pre|blockquote|sup|sub|picture|source|figure|figcaption)\b[^>]*\/?>|<\/(div|p|a|table|tr|td|th|span|h[1-6]|center|details|summary|ul|ol|li|em|strong|b|i|code|pre|blockquote|sup|sub|picture|source|figure|figcaption)>/gi, (match) => {
+      const idx = htmlBlocks.length;
+      htmlBlocks.push(match);
+      return `\x00HTML${idx}\x00`;
+    });
+
+    let html = preserved
+      // Escape remaining HTML (not our placeholders)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       // Headings
       .replace(/^###### (.+)$/gm, '<h6>$1</h6>')
@@ -129,6 +138,9 @@ const UI = (() => {
       .replace(/<p><\/p>/g, '')
       .replace(/<p>\n/g, '<p>')
       .replace(/\n<\/p>/g, '</p>');
+
+    // Restore preserved HTML blocks
+    html = html.replace(/\x00HTML(\d+)\x00/g, (_, idx) => htmlBlocks[parseInt(idx)]);
 
     return html;
   }
@@ -238,6 +250,15 @@ const UI = (() => {
     }
   }
 
+  // ── Debounce utility ──
+  function debounce(fn, delay = 250) {
+    let timer;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn(...args), delay);
+    };
+  }
+
   return {
     toast,
     initToasts,
@@ -250,6 +271,7 @@ const UI = (() => {
     copyText,
     showPage,
     setLoading,
+    debounce,
   };
 })();
 

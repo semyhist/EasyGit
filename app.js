@@ -38,6 +38,14 @@ const App = (() => {
     bindFilterEvents();
     initKeyboardShortcuts();
     initContextMenu();
+    initRepoGridDelegation();
+
+    // Debounced search binding
+    const searchEl = document.getElementById('repo-search');
+    if (searchEl) {
+      const debouncedSearch = UI.debounce((val) => dashboard.search(val), 200);
+      searchEl.addEventListener('input', (e) => debouncedSearch(e.target.value));
+    }
 
     if (Store.isSetupComplete()) {
       showDashboard();
@@ -63,6 +71,13 @@ const App = (() => {
       tone: Store.getAITone(),
       customInstructions: Store.getCustomInstructions(),
     };
+  }
+
+  // ── Append signature to readme content ──
+  function withSignature(content) {
+    const sig = Store.getSignature().trim();
+    if (!sig) return content;
+    return content.trimEnd() + '\n\n' + sig;
   }
 
   // ── OS Notification ──
@@ -144,16 +159,36 @@ const App = (() => {
     closeContextMenu();
     ctxMenu = document.createElement('div');
     ctxMenu.className = 'ctx-menu';
-    ctxMenu.innerHTML = `
-      <div class="ctx-item" onclick="App.panel.open(${JSON.stringify(repo).replace(/"/g,'&quot;')}); App.closeContextMenu()"><span class="ctx-item-icon">📂</span> Open Details</div>
-      <div class="ctx-separator"></div>
-      <div class="ctx-item" onclick="App.contextActions.topics(${repo.id})"><span class="ctx-item-icon">🏷️</span> Add Topics</div>
-      <div class="ctx-item" onclick="App.contextActions.description(${repo.id})"><span class="ctx-item-icon">📝</span> Write Description</div>
-      <div class="ctx-item" onclick="App.contextActions.readme(${repo.id})"><span class="ctx-item-icon">📖</span> Generate README</div>
-      <div class="ctx-item" onclick="App.contextActions.all(${repo.id})"><span class="ctx-item-icon">⚡</span> Do Everything</div>
-      <div class="ctx-separator"></div>
-      <div class="ctx-item" onclick="window.open('${repo.html_url}','_blank');App.closeContextMenu()"><span class="ctx-item-icon">🌐</span> Open on GitHub</div>
-    `;
+
+    const items = [
+      { icon: '📂', label: 'Open Details', action: () => { panel.open(repo); closeContextMenu(); } },
+      'separator',
+      { icon: '🏷️', label: 'Add Topics', action: () => contextActions.topics(repo.id) },
+      { icon: '📝', label: 'Write Description', action: () => contextActions.description(repo.id) },
+      { icon: '📖', label: 'Generate README', action: () => contextActions.readme(repo.id) },
+      { icon: '⚡', label: 'Do Everything', action: () => contextActions.all(repo.id) },
+      'separator',
+      { icon: '🌐', label: 'Open on GitHub', action: () => { window.open(repo.html_url, '_blank'); closeContextMenu(); } },
+    ];
+
+    items.forEach(item => {
+      if (item === 'separator') {
+        const sep = document.createElement('div');
+        sep.className = 'ctx-separator';
+        ctxMenu.appendChild(sep);
+        return;
+      }
+      const el = document.createElement('div');
+      el.className = 'ctx-item';
+      const iconSpan = document.createElement('span');
+      iconSpan.className = 'ctx-item-icon';
+      iconSpan.textContent = item.icon;
+      el.appendChild(iconSpan);
+      el.appendChild(document.createTextNode(item.label));
+      el.addEventListener('click', item.action);
+      ctxMenu.appendChild(el);
+    });
+
     document.body.appendChild(ctxMenu);
     // Position
     const w = 200, h = ctxMenu.offsetHeight || 180;
@@ -532,6 +567,40 @@ const App = (() => {
     document.getElementById('repo-count').textContent = '— repos';
   }
 
+  // ── Event delegation for repo grid (set once in init) ──
+  function initRepoGridDelegation() {
+    const grid = document.getElementById('repo-grid');
+    if (!grid) return;
+
+    grid.addEventListener('click', (e) => {
+      const card = e.target.closest('.repo-card');
+      if (!card) return;
+      const repoId = parseInt(card.dataset.repoId);
+      const repo = state.repos.find(r => r.id === repoId);
+      if (!repo) return;
+
+      // Checkbox click → select
+      if (e.target.closest('.repo-card-check')) {
+        if (state.selectedRepos.has(repoId)) {
+          state.selectedRepos.delete(repoId);
+          card.classList.remove('selected');
+          const check = card.querySelector('.repo-card-check');
+          const svg = check?.querySelector('svg');
+          if (svg) svg.remove();
+        } else {
+          state.selectedRepos.add(repoId);
+          card.classList.add('selected');
+          card.querySelector('.repo-card-check').innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>`;
+        }
+        updateBulkBar();
+        return;
+      }
+
+      // Card click → open panel
+      panel.open(repo);
+    });
+  }
+
   function renderRepoGrid(repos) {
     const grid = document.getElementById('repo-grid');
     const emptyState = document.getElementById('empty-state');
@@ -546,36 +615,6 @@ const App = (() => {
 
     emptyState.style.display = 'none';
     grid.innerHTML = repos.map(repo => repoCardHTML(repo)).join('');
-
-    // Bind card clicks
-    grid.querySelectorAll('.repo-card').forEach(card => {
-      const repoId = parseInt(card.dataset.repoId);
-      const repo = state.repos.find(r => r.id === repoId);
-
-      // Card click → open panel
-      card.addEventListener('click', (e) => {
-        if (e.target.closest('.repo-card-check')) return; // handled separately
-        if (repo) panel.open(repo);
-      });
-
-      // Checkbox click → select
-      const check = card.querySelector('.repo-card-check');
-      if (check) {
-        check.addEventListener('click', (e) => {
-          e.stopPropagation();
-          if (state.selectedRepos.has(repoId)) {
-            state.selectedRepos.delete(repoId);
-            card.classList.remove('selected');
-            check.querySelector('svg')?.remove();
-          } else {
-            state.selectedRepos.add(repoId);
-            card.classList.add('selected');
-            check.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>`;
-          }
-          updateBulkBar();
-        });
-      }
-    });
   }
 
   function repoCardHTML(repo) {
@@ -763,7 +802,9 @@ const App = (() => {
         const prompt = Prompts.topics(repo, opts);
 
         const raw = await AI.complete(prompt.user, prompt.system);
-        const topics = JSON.parse(raw.match(/\[[\s\S]*\]/)?.[0] || raw);
+        const jsonMatch = raw.match(/\[[\s\S]*\]/);
+        if (!jsonMatch) throw new Error('AI did not return valid JSON. Please try again or switch models.');
+        const topics = JSON.parse(jsonMatch[0]);
         state.modalResult = { topics };
         pushHistory(repo.id, 'topics', topics);
         modal.showTopicsPreview(topics, repo.topics || []);
@@ -802,7 +843,7 @@ const App = (() => {
       try {
         const existing = await GitHub.getReadme(state.user.login, repo.name);
         const prompt = Prompts.readme(repo, existing.content, aiOpts());
-        const content = await AI.complete(prompt.user, prompt.system);
+        const content = withSignature(await AI.complete(prompt.user, prompt.system));
         state.modalResult = { content, sha: existing.sha };
         pushHistory(repo.id, 'readme', content);
         modal.showReadmePreview(content);
@@ -819,19 +860,22 @@ const App = (() => {
       const opts = aiOpts();
 
       try {
-        // Fetch README first for content context, then generate topics + description with it
         const readmeInfo = await GitHub.getReadme(state.user.login, repo.name).catch(() => ({ content: null, sha: null }));
         const optsWithContent = { ...opts, readmeContent: readmeInfo.content };
 
-        const [topicsResult, descResult] = await Promise.all([
-          AI.complete(Prompts.topics(repo, optsWithContent).user, Prompts.topics(repo, optsWithContent).system),
-          AI.complete(Prompts.description(repo, optsWithContent).user, Prompts.description(repo, optsWithContent).system),
-        ]);
-
-        const topics = JSON.parse(topicsResult.match(/\[[\s\S]*\]/)?.[0] || topicsResult);
-        const description = descResult.trim();
         const readmePrompt = Prompts.readme(repo, readmeInfo.content, opts);
-        const readmeContent = await AI.complete(readmePrompt.user, readmePrompt.system);
+        const readmeContent = withSignature(await AI.complete(readmePrompt.user, readmePrompt.system));
+        await new Promise(r => setTimeout(r, 500));
+
+        const descResult = await AI.complete(Prompts.description(repo, optsWithContent).user, Prompts.description(repo, optsWithContent).system);
+        await new Promise(r => setTimeout(r, 500));
+
+        const topicsResult = await AI.complete(Prompts.topics(repo, optsWithContent).user, Prompts.topics(repo, optsWithContent).system);
+
+        const topicsMatch = topicsResult.match(/\[[\s\S]*\]/);
+        if (!topicsMatch) throw new Error('AI did not return valid topic JSON. Please try again.');
+        const topics = JSON.parse(topicsMatch[0]);
+        const description = descResult.trim();
 
         state.modalResult = { topics, description, readmeContent, readmeSha: readmeInfo.sha };
         pushHistory(repo.id, 'all', { topics, description, readmeContent });
@@ -865,7 +909,9 @@ const App = (() => {
       await bulkModal.run('🏷️ Adding Topics', repos, async (repo, log) => {
         const prompt = Prompts.topics(repo, opts);
         const raw = await AI.complete(prompt.user, prompt.system);
-        const topics = JSON.parse(raw.match(/\[[\s\S]*\]/)?.[0] || raw);
+        const topicMatch = raw.match(/\[[\s\S]*\]/);
+        if (!topicMatch) throw new Error(`AI did not return valid JSON for ${repo.name}.`);
+        const topics = JSON.parse(topicMatch[0]);
         await GitHub.updateRepoTopics(state.user.login, repo.name, topics);
         repo.topics = topics;
         log(`✅ ${repo.name}: ${topics.join(', ')}`);
@@ -894,7 +940,7 @@ const App = (() => {
       await bulkModal.run('📖 Generating READMEs', repos, async (repo, log) => {
         const existing = await GitHub.getReadme(state.user.login, repo.name);
         const prompt = Prompts.readme(repo, existing.content, opts);
-        const content = await AI.complete(prompt.user, prompt.system);
+        const content = withSignature(await AI.complete(prompt.user, prompt.system));
         await GitHub.createOrUpdateReadme(state.user.login, repo.name, content, existing.sha);
         log(`✅ ${repo.name}: README ${existing.sha ? 'updated' : 'created'}`);
       });
@@ -907,14 +953,18 @@ const App = (() => {
       const opts = aiOpts();
       await bulkModal.run('⚡ Doing Everything', repos, async (repo, log) => {
         log(`⏳ Processing ${repo.name}...`);
-        const [tRaw, desc, existingReadme] = await Promise.all([
-          AI.complete(Prompts.topics(repo, opts).user, Prompts.topics(repo, opts).system),
-          AI.complete(Prompts.description(repo, opts).user, Prompts.description(repo, opts).system),
-          GitHub.getReadme(state.user.login, repo.name),
-        ]);
-        const topics = JSON.parse(tRaw.match(/\[[\s\S]*\]/)?.[0] || tRaw);
-        const readmeContent = await AI.complete(Prompts.readme(repo, existingReadme.content, opts).user, Prompts.readme(repo, {}, opts).system);
+        const existingReadme = await GitHub.getReadme(state.user.login, repo.name);
+        const optsWithContent = { ...opts, readmeContent: existingReadme.content };
 
+        const readmeContent = withSignature(await AI.complete(Prompts.readme(repo, existingReadme.content, opts).user, Prompts.readme(repo, existingReadme.content, opts).system));
+        await new Promise(r => setTimeout(r, 500));
+        const desc = await AI.complete(Prompts.description(repo, optsWithContent).user, Prompts.description(repo, optsWithContent).system);
+        await new Promise(r => setTimeout(r, 500));
+        const tRaw = await AI.complete(Prompts.topics(repo, optsWithContent).user, Prompts.topics(repo, optsWithContent).system);
+
+        const tMatch = tRaw.match(/\[[\s\S]*\]/);
+        if (!tMatch) throw new Error(`AI did not return valid JSON for ${repo.name}. Skipping.`);
+        const topics = JSON.parse(tMatch[0]);
         await Promise.all([
           GitHub.updateRepoTopics(state.user.login, repo.name, topics),
           GitHub.updateRepoDescription(state.user.login, repo.name, desc.trim()),
@@ -1169,7 +1219,7 @@ const App = (() => {
 
         const opts = { ...aiOpts(), template, sections, showStreak, showTopLangs, showTrophies, customBio };
         const prompt = Prompts.profileReadme(state.user, state.repos, existing.content, opts, pinned, social);
-        const content = await AI.complete(prompt.user, prompt.system, { maxTokens: prompt.maxTokens || 8192 });
+        const content = withSignature(await AI.complete(prompt.user, prompt.system, { maxTokens: prompt.maxTokens || 8192 }));
         state.modalResult = { content, sha: existing.sha };
         pushHistory('profile', 'profileReadme', content);
         modal.showReadmePreview(content);
@@ -1371,19 +1421,29 @@ const App = (() => {
     open() {
       const modal = document.getElementById('settings-modal');
 
-      // Populate provider select
       const provSelect = document.getElementById('settings-ai-provider');
       provSelect.innerHTML = AI.getAllProviders()
         .map(p => `<option value="${p.id}" ${p.id === Store.getAIProvider() ? 'selected' : ''}>${p.icon} ${p.name}</option>`)
         .join('');
       settings.onProviderChange();
 
-      // Fill current values
-      document.getElementById('settings-github-token').value = Store.getGitHubToken();
-      document.getElementById('settings-ai-key').value = Store.getAIKey();
-      document.getElementById('settings-custom-instructions').value = Store.getCustomInstructions();
+      // Render per-provider key inputs
+      const keysContainer = document.getElementById('settings-provider-keys');
+      keysContainer.innerHTML = AI.getAllProviders().map(p => `
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="width:110px;font-size:0.8125rem;color:var(--text-secondary);flex-shrink:0">${p.icon} ${p.name}</span>
+          <div class="input-with-icon" style="flex:1">
+            <input type="password" id="key-${p.id}" class="input" style="font-size:0.8125rem;padding:6px 36px 6px 10px"
+              placeholder="${p.keyHint}" value="${Store.getProviderKey(p.id) || ''}" autocomplete="off" spellcheck="false" />
+            <span class="input-icon" style="font-size:0.85rem" onclick="App.onboarding.togglePassword('key-${p.id}', this)">👁️</span>
+          </div>
+        </div>
+      `).join('');
 
-      // Tone chips
+      document.getElementById('settings-github-token').value = Store.getGitHubToken();
+      document.getElementById('settings-custom-instructions').value = Store.getCustomInstructions();
+      document.getElementById('settings-signature').value = Store.getSignature();
+
       const currentTone = Store.getAITone();
       document.querySelectorAll('#settings-tone-chips .tone-chip').forEach(chip => {
         chip.classList.toggle('active', chip.dataset.tone === currentTone);
@@ -1412,11 +1472,17 @@ const App = (() => {
       const githubToken = document.getElementById('settings-github-token').value.trim();
       const aiProvider  = document.getElementById('settings-ai-provider').value;
       const aiModel     = document.getElementById('settings-ai-model').value;
-      const aiKey       = document.getElementById('settings-ai-key').value.trim();
       const customInstructions = document.getElementById('settings-custom-instructions').value;
-      const aiTone      = document.querySelector('#settings-tone-chips .tone-chip.active')?.dataset.tone || 'default';
+      const signature      = document.getElementById('settings-signature').value;
+      const aiTone         = document.querySelector('#settings-tone-chips .tone-chip.active')?.dataset.tone || 'default';
 
-      Store.saveAll({ githubToken, aiProvider, aiKey, aiModel, aiTone, customInstructions });
+      const providerKeys = {};
+      AI.getAllProviders().forEach(p => {
+        const val = document.getElementById(`key-${p.id}`)?.value.trim();
+        if (val) providerKeys[p.id] = val;
+      });
+
+      Store.saveAll({ githubToken, aiProvider, aiModel, aiTone, customInstructions, signature, providerKeys });
       Store.cacheClear();
       UI.toast('Settings saved!', 'success');
       settings.close();

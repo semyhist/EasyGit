@@ -70,7 +70,7 @@ Is Fork: ${repo.fork ? 'yes' : 'no'}`.trim();
   // ── Profile context ──
   function userContext(user, repos, pinned = [], social = []) {
     const langs = [...new Set(repos.map(r => r.language).filter(Boolean))];
-    const topRepos = repos
+    const topRepos = [...repos]
       .sort((a, b) => b.stargazers_count - a.stargazers_count)
       .slice(0, 8)
       .map(r => `  - ${r.name} (${r.language || 'n/a'}, ⭐${r.stargazers_count}, 🍴${r.forks_count}): ${r.description || 'no description'}`)
@@ -88,7 +88,7 @@ Is Fork: ${repo.fork ? 'yes' : 'no'}`.trim();
 
     const totalStars = repos.reduce((sum, r) => sum + r.stargazers_count, 0);
     const totalForks = repos.reduce((sum, r) => sum + r.forks_count, 0);
-    const recentActivity = repos
+    const recentActivity = [...repos]
       .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
       .slice(0, 3)
       .map(r => `  - ${r.name} (updated ${new Date(r.updated_at).toLocaleDateString()})`)
@@ -170,33 +170,97 @@ Rules:
   }
 
   // ═══════════════════════════════════════
-  //  3. REPO README
+  //  3. REPO README (ENHANCED)
   // ═══════════════════════════════════════
   function readme(repo, existingReadme = null, opts = {}) {
     const existingSection = existingReadme
-      ? `\nExisting README (use as context, improve it):\n---\n${existingReadme.slice(0, 1500)}\n---`
+      ? `\nExisting README (use as context and improve it — keep any useful specific details):\n---\n${existingReadme.slice(0, 2000)}\n---`
       : '';
+
+    const owner = repo.owner?.login || 'username';
+    const lang = repo.language || 'Unknown';
+    const hasTopics = repo.topics && repo.topics.length > 0;
+    const isWebProject = ['JavaScript', 'TypeScript', 'HTML', 'CSS', 'Vue', 'Svelte'].includes(lang);
+    const isPythonProject = lang === 'Python';
+    const isJavaProject = ['Java', 'Kotlin'].includes(lang);
+    const isCLI = (repo.description || '').toLowerCase().match(/cli|command.?line|terminal/) || (repo.name || '').toLowerCase().match(/cli/);
+    const isLibrary = (repo.description || '').toLowerCase().match(/library|sdk|framework|package|module/);
+    const hasHomepage = !!repo.homepage;
 
     return {
       system: SYSTEM,
-      user: `Create a professional README.md for the following GitHub repository.
+      user: `Create a **professional, visually stunning** README.md for the following GitHub repository.
 
 ${repoContext(repo)}${existingSection}${extraBlock(opts)}
 
-README must include (where applicable):
-1. Project title with a relevant emoji
-2. Short description (1-2 sentences)
-3. Badges (GitHub stars, license, language — use shields.io placeholders)
-4. Features list (4-6 bullet points based on the project)
-5. Installation section with code blocks
-6. Usage section with example code
-7. Contributing section (brief)
-8. License section
+The README must be comprehensive, well-structured, and make the project look polished and professional.
 
-Guidelines:
-- Use proper Markdown formatting with code blocks and language tags
-- For GitHub username/repo use: ${repo.owner?.login || 'username'} / ${repo.name}
-- Return ONLY the Markdown content, no surrounding text or explanation.`,
+=== REQUIRED STRUCTURE ===
+
+1. **Hero Section**
+   - Project name with a relevant emoji as H1 heading
+   - 1-2 sentence tagline that explains what the project does and why it matters
+   - Badge row using shields.io:
+     - ![GitHub Stars](https://img.shields.io/github/stars/${owner}/${repo.name}?style=for-the-badge&logo=github&logoColor=white&color=0891b2)
+     - ![License](https://img.shields.io/github/license/${owner}/${repo.name}?style=for-the-badge&color=6366f1)
+     - ![Language](https://img.shields.io/badge/${encodeURIComponent(lang)}-${isWebProject ? '3178c6' : isPythonProject ? '3572a5' : '0891b2'}?style=for-the-badge&logo=${lang.toLowerCase().replace(/[^a-z]/g,'')}&logoColor=white)
+     ${hasHomepage ? `- ![Website](https://img.shields.io/badge/Website-Visit-0891b2?style=for-the-badge&logo=googlechrome&logoColor=white)` : ''}
+   ${hasHomepage ? `- Link to live demo/website: ${repo.homepage}` : ''}
+
+2. **Table of Contents** (use markdown links)
+   - Only include sections that you actually generate
+   - Format: - [Section Name](#section-name)
+
+3. **About / Overview**
+   - 2-3 paragraphs explaining the project in detail
+   - What problem does it solve? Who is the target audience?
+   - What makes it different or notable?
+   ${isCLI ? '- Emphasize command-line usage and workflow' : ''}
+   ${isLibrary ? '- Emphasize API design and integration simplicity' : ''}
+
+4. **Key Features** (use emojis as bullet prefixes)
+   - 5-8 concrete features with brief descriptions
+   - Format: ✨ **Feature Name** — Brief explanation
+   - Be specific to THIS project, not generic features
+
+5. **Tech Stack** (if applicable)
+   - Use shields.io badges in a single row for each technology
+   - Only include technologies that are evident from the repo data
+
+6. **Getting Started**
+   - **Prerequisites**: List what's needed (Node.js version, Python version, etc.)
+   - **Installation**: Step-by-step with code blocks
+     ${isWebProject ? '```bash\ngit clone https://github.com/' + owner + '/' + repo.name + '.git\ncd ' + repo.name + '\nnpm install\nnpm run dev\n```' : ''}
+     ${isPythonProject ? '```bash\ngit clone https://github.com/' + owner + '/' + repo.name + '.git\ncd ' + repo.name + '\npip install -r requirements.txt\npython main.py\n```' : ''}
+   - Adapt the installation steps to the actual language: ${lang}
+
+7. **Usage** (with code examples)
+   - Show 1-2 practical usage examples with code blocks
+   - Use the correct language tag for syntax highlighting
+   ${isCLI ? '- Show CLI command examples with expected output' : ''}
+   ${isLibrary ? '- Show import/usage API examples' : ''}
+
+8. **Project Structure** (brief overview)
+   - Show a simplified directory tree of key files/folders
+   - Use code block with no language tag
+
+9. **Contributing**
+   - Brief contributing guidelines (4-5 steps)
+   - Link to issues page: https://github.com/${owner}/${repo.name}/issues
+
+10. **License**
+    - Reference the license type if known
+    - Link: [LICENSE](LICENSE)
+
+=== FORMATTING RULES ===
+- Use proper Markdown with code blocks, language-specific syntax highlighting
+- Use HTML <div align="center"> for centering badges and hero section
+- Add horizontal rules (---) between major sections for visual separation
+- Use blockquotes (>) for important notes or tips
+- Keep the total length between 150-300 lines
+- For the repo owner use: ${owner}
+- Do NOT wrap the output in \`\`\`markdown code fences
+- Return ONLY the raw Markdown content`,
     };
   }
 
@@ -295,7 +359,7 @@ Guidelines:
           lang: p.primaryLanguage?.name || '',
           stars: p.stargazerCount,
         }))
-      : repos.sort((a,b) => b.stargazers_count - a.stargazers_count).slice(0,4).map(r => ({
+      : [...repos].sort((a,b) => b.stargazers_count - a.stargazers_count).slice(0,4).map(r => ({
           name: r.name, url: r.html_url,
           desc: r.description || '',
           lang: r.language || '',
@@ -403,7 +467,7 @@ Add the activity graph:
 <p align="center">
   <img src="${WIDGETS.activity}" />
 </p>
-Also mention recently active repos: ${repos.sort((a,b) => new Date(b.updated_at)-new Date(a.updated_at)).slice(0,3).map(r=>r.name).join(', ')}`,
+Also mention recently active repos: ${[...repos].sort((a,b) => new Date(b.updated_at)-new Date(a.updated_at)).slice(0,3).map(r=>r.name).join(', ')}`,
 
       fun: `
 ## FUN / PERSONAL SECTION

@@ -7,9 +7,9 @@
   <meta name="description" content="Beautify your GitHub profile and repositories with AI-powered tools. Auto-generate READMEs, topics, descriptions and more." />
   <link rel="stylesheet" href="style.css" />
 
-  <!-- Preconnect for performance -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" />
 </head>
 <body>
   <div id="app">
@@ -297,7 +297,6 @@
                 id="repo-search"
                 placeholder="Search repositories...  Ctrl+F"
                 autocomplete="off"
-                oninput="App.dashboard.search(this.value)"
               />
             </div>
 
@@ -397,19 +396,16 @@
             </div>
           </div>
           <div class="input-group">
-            <label class="input-label">AI Provider</label>
+            <label class="input-label">Active AI Provider</label>
             <select class="select" id="settings-ai-provider" onchange="App.settings.onProviderChange()"></select>
           </div>
           <div class="input-group">
-            <label class="input-label">AI Model</label>
+            <label class="input-label">Model</label>
             <select class="select" id="settings-ai-model"></select>
           </div>
           <div class="input-group">
-            <label class="input-label">AI API Key</label>
-            <div class="input-with-icon">
-              <input type="password" id="settings-ai-key" class="input" placeholder="Your API key..." />
-              <span class="input-icon" onclick="App.onboarding.togglePassword('settings-ai-key', this)" title="Show/hide">👁️</span>
-            </div>
+            <label class="input-label">API Keys <span style="font-weight:400;color:var(--text-muted);font-size:0.75rem">(saved per provider)</span></label>
+            <div id="settings-provider-keys" style="display:flex;flex-direction:column;gap:10px"></div>
           </div>
           <div class="input-group">
             <label class="input-label">Writing Tone</label>
@@ -425,6 +421,11 @@
             <label class="input-label">Custom AI Instructions <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
             <textarea id="settings-custom-instructions" class="custom-inst-ta" placeholder="E.g. Always add a Table of Contents. Always include a Changelog section. Keep READMEs under 200 lines."></textarea>
             <span class="input-hint">These instructions are appended to every AI generation prompt.</span>
+          </div>
+          <div class="input-group">
+            <label class="input-label">README Signature <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
+            <textarea id="settings-signature" class="custom-inst-ta" placeholder="E.g.&#10;---&#10;> Made with ❤️ by [Semih](https://github.com/semyhist)"></textarea>
+            <span class="input-hint">Appended to the bottom of every generated README.</span>
           </div>
         </div>
         <div class="modal-footer">
