@@ -60,7 +60,7 @@ Whether you're a seasoned developer looking to save time or new to the GitHub ec
 *   **npm** or **Yarn**: Package manager that comes with Node.js.
 
 ### Installation
-
+[Direct Installation](https://github.com/semyhist/EasyGit/releases/tag/EasyGit-Beta)
 1.  **Clone the repository:**
     ```bash
     git clone https://github.com/semyhist/EasyGit.git
